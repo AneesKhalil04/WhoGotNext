@@ -1,2 +1,0 @@
-# WhoGotNext
-Sports app game
