@@ -1,8 +1,15 @@
-
-
 import React, { useRef, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, Animated, Image, TouchableOpacity } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  Animated,
+  Image,
+  TouchableOpacity,
+  Modal,
+  SectionList,
+} from 'react-native';
 
 const sportEmojis = {
   Basketball: '🏀',
@@ -37,6 +44,16 @@ const mockGames = [
     dateTime: 'Sat 2:00 PM',
     roster: [],
   },
+  {
+    id: 'c1',
+    sport: 'Basketball',
+    location: 'Main Gym',
+    dateTime: 'Tomorrow 8:00 PM',
+    roster: [
+      { id: 'u4', avatar: 'https://randomuser.me/api/portraits/men/4.jpg' },
+    ],
+    createdBy: 'me',
+  },
 ];
 
 const sports = ['All', 'Basketball', 'Soccer', 'Flag Football'];
@@ -53,35 +70,34 @@ function GameCard({ item, onPress }) {
     }).start();
   }, [fade]);
 
-  const handlePressIn = () => {
-    Animated.spring(scale, {
-      toValue: 0.97,
-      useNativeDriver: true,
-    }).start();
-  };
-  const handlePressOut = () => {
-    Animated.spring(scale, {
-      toValue: 1,
-      useNativeDriver: true,
-    }).start();
-  };
-
   return (
-    <Animated.View style={[styles.card, { opacity: fade, transform: [{ scale }] }]}> 
+    <Animated.View
+      style={[styles.card, { opacity: fade, transform: [{ scale }] }]}
+    >
       <Pressable
         onPress={onPress}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
+        onPressIn={() =>
+          Animated.spring(scale, { toValue: 0.97, useNativeDriver: true }).start()
+        }
+        onPressOut={() =>
+          Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start()
+        }
         style={{ flexDirection: 'row', alignItems: 'center' }}
       >
         <Text style={styles.emoji}>{sportEmojis[item.sport] || '🎲'}</Text>
         <View style={{ flex: 1 }}>
           <Text style={styles.sport}>{item.sport}</Text>
-          <Text style={styles.info}>{item.location} · {item.dateTime}</Text>
+          <Text style={styles.info}>
+            {item.location} · {item.dateTime}
+          </Text>
         </View>
         <View style={styles.avatars}>
-          {item.roster.map(user => (
-            <Image key={user.id} source={{ uri: user.avatar }} style={styles.avatar} />
+          {item.roster.map((user) => (
+            <Image
+              key={user.id}
+              source={{ uri: user.avatar }}
+              style={styles.avatar}
+            />
           ))}
         </View>
       </Pressable>
@@ -89,58 +105,86 @@ function GameCard({ item, onPress }) {
   );
 }
 
-export default function GamesScreen() {
+export default function App() {
   const [selectedSport, setSelectedSport] = useState('All');
+  const [dropdownVisible, setDropdownVisible] = useState(false);
 
   const handleGamePress = (gameId) => {
-    // TODO: navigate to GameDetailScreen with gameId
     alert('Go to Game Detail for game ' + gameId);
   };
 
   const handleCreateGame = () => {
-    // TODO: open game creation form
     alert('Open Create Game form');
   };
 
-  const filteredGames = selectedSport === 'All'
-    ? mockGames
-    : mockGames.filter(game => game.sport === selectedSport);
+  const joinedGames = mockGames.filter((g) => !g.createdBy);
+  const createdGames = mockGames.filter((g) => g.createdBy === 'me');
+
+  // filter by sport if not "All"
+  const filterBySport = (games) =>
+    selectedSport === 'All' ? games : games.filter((g) => g.sport === selectedSport);
+
+  const sections = [
+    { title: 'Joined Games', data: filterBySport(joinedGames) },
+    { title: 'Created Games', data: filterBySport(createdGames) },
+  ];
 
   return (
     <View style={styles.container}>
-      {/* Top dark grey slab for Dynamic Island area */}
       <View style={styles.topSlab}></View>
-      {/* Spacer to push content below the top slab */}
       <View style={{ height: 64 }} />
-      {/* All content below the top slab */}
+
       <Text style={styles.header}>My Games</Text>
-      <Text style={styles.subheader}>Quick access to games you’ve joined or created</Text>
+      <Text style={styles.subheader}>
+        Quick access to games you’ve joined or created
+      </Text>
+
+      {/* Dropdown */}
       <View style={styles.dropdownContainer}>
-        <Picker
-          selectedValue={selectedSport}
-          style={styles.picker}
-          onValueChange={(itemValue) => setSelectedSport(itemValue)}
-          dropdownIconColor="#00FFFF"
+        <TouchableOpacity
+          style={styles.dropdownBtn}
+          onPress={() => setDropdownVisible(true)}
         >
-          {sports.map(sport => (
-            <Picker.Item label={sport} value={sport} key={sport} />
-          ))}
-        </Picker>
+          <Text style={styles.dropdownBtnText}>{selectedSport}</Text>
+        </TouchableOpacity>
+        <Modal visible={dropdownVisible} transparent animationType="fade">
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            onPress={() => setDropdownVisible(false)}
+          >
+            <View style={styles.dropdownModal}>
+              {sports.map((sport) => (
+                <TouchableOpacity
+                  key={sport}
+                  style={styles.dropdownOption}
+                  onPress={() => {
+                    setSelectedSport(sport);
+                    setDropdownVisible(false);
+                  }}
+                >
+                  <Text style={styles.dropdownOptionText}>{sport}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </TouchableOpacity>
+        </Modal>
       </View>
-      {/* Sections for Joined and Created Games (placeholder) */}
-      <Text style={styles.sectionHeader}>Joined Games</Text>
-      <FlatList
-        data={filteredGames}
-        keyExtractor={item => item.id}
-        renderItem={props => {
-          if (!props || !props.item) return null;
-          return <GameCard item={props.item} onPress={() => handleGamePress(props.item.id)} />;
-        }}
+
+      {/* SectionList for both joined + created */}
+      <SectionList
+        sections={sections}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <GameCard item={item} onPress={() => handleGamePress(item.id)} />
+        )}
+        renderSectionHeader={({ section: { title } }) => (
+          <Text style={styles.sectionHeader}>{title}</Text>
+        )}
         ListEmptyComponent={<Text style={styles.empty}>No games available.</Text>}
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: 100 }}
       />
-      <Text style={styles.sectionHeader}>Created Games</Text>
-      {/* TODO: Add FlatList for created games */}
+
+      {/* Floating button */}
       <TouchableOpacity
         style={styles.fab}
         activeOpacity={0.7}
@@ -151,12 +195,13 @@ export default function GamesScreen() {
     </View>
   );
 }
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#111111',
-    paddingTop: 0,
-    paddingHorizontal: 0,
+    paddingTop: 40,
+    paddingHorizontal: 16,
   },
   topSlab: {
     backgroundColor: '#222',
@@ -165,39 +210,11 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 64,
-    marginBottom: 12,
     shadowColor: '#222831',
     shadowOpacity: 0.08,
     shadowRadius: 6,
     elevation: 2,
     zIndex: 10,
-  },
-  sectionHeader: {
-    color: '#00FFFF',
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginLeft: 16,
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  dropdownContainer: {
-    marginBottom: 12,
-    backgroundColor: '#222',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 2,
-  },
-  picker: {
-    color: '#00FFFF',
-    fontSize: 16,
-    height: 40,
-    width: '100%',
-  },
-  container: {
-    flex: 1,
-    backgroundColor: '#111111',
-    paddingTop: 40,
-    paddingHorizontal: 16,
   },
   header: {
     color: '#00FFFF',
@@ -213,6 +230,59 @@ const styles = StyleSheet.create({
     marginBottom: 18,
     fontWeight: '600',
     letterSpacing: 0.5,
+  },
+  sectionHeader: {
+    color: '#00FFFF',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginLeft: 16,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  dropdownContainer: {
+    marginBottom: 12,
+    backgroundColor: '#222',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 2,
+    alignItems: 'flex-start',
+  },
+  dropdownBtn: {
+    backgroundColor: '#222',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#00FFFF',
+    minWidth: 120,
+  },
+  dropdownBtnText: {
+    color: '#00FFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dropdownModal: {
+    backgroundColor: '#222',
+    borderRadius: 12,
+    padding: 12,
+    minWidth: 180,
+    elevation: 8,
+  },
+  dropdownOption: {
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+  },
+  dropdownOptionText: {
+    color: '#00FFFF',
+    fontSize: 16,
   },
   card: {
     backgroundColor: '#222',
@@ -255,7 +325,7 @@ const styles = StyleSheet.create({
   empty: {
     color: '#fff',
     textAlign: 'center',
-    marginTop: 40,
+    marginTop: 20,
     fontSize: 16,
   },
   fab: {
