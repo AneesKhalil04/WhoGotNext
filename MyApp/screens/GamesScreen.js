@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useContext } from 'react';
 import {
   View,
   Text,
@@ -10,12 +10,15 @@ import {
   Modal,
   SectionList,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { JoinedGamesContext } from './HomeScreen';
 
-const sportEmojis = {
-  Basketball: '🏀',
-  Soccer: '⚽',
-  'Flag Football': '🏈',
+const sportAccents = {
+  Basketball: '#FF9900',
+  Soccer: '#00FF66',
+  'Flag Football': '#FF3333',
 };
+const secondaryAccent = '#A020F0';
 
 const mockGames = [
   {
@@ -56,8 +59,6 @@ const mockGames = [
   },
 ];
 
-const sports = ['All', 'Basketball', 'Soccer', 'Flag Football'];
-
 function GameCard({ item, onPress }) {
   const scale = useRef(new Animated.Value(1)).current;
   const fade = useRef(new Animated.Value(0)).current;
@@ -69,6 +70,10 @@ function GameCard({ item, onPress }) {
       useNativeDriver: true,
     }).start();
   }, [fade]);
+
+  // Safe guard for rosterPreview
+  const rosterPreview = Array.isArray(item.roster) ? item.roster.slice(0, 3) : [];
+  console.log('GameCard rosterPreview:', rosterPreview);
 
   return (
     <Animated.View
@@ -82,32 +87,72 @@ function GameCard({ item, onPress }) {
         onPressOut={() =>
           Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start()
         }
-        style={{ flexDirection: 'row', alignItems: 'center' }}
+        style={{ flexDirection: 'column', alignItems: 'stretch' }}
       >
-        <Text style={styles.emoji}>{sportEmojis[item.sport] || '🎲'}</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.sport}>{item.sport}</Text>
-          <Text style={styles.info}>
-            {item.location} · {item.dateTime}
-          </Text>
+        <View style={{ position: 'relative' }}>
+          {/* Top and bottom gradient overlays in grey */}
+          <LinearGradient
+            colors={["#222", "#333", "#222"]}
+            start={{ x: 0.1, y: 0.7 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.gradientOverlay}
+          />
+          {/* Roster preview avatars */}
+          <View style={styles.rosterPreview}>
+            {(rosterPreview || []).map((user, i) => (
+              <Image
+                key={user.id}
+                source={{ uri: user.avatar }}
+                style={[styles.avatar, { left: i * 18, zIndex: 3 - i }]}
+              />
+            ))}
+            {(!rosterPreview || rosterPreview.length === 0) && (
+              <Text style={{ color: '#aaa', fontSize: 12 }}>No roster</Text>
+            )}
+          </View>
         </View>
-        <View style={styles.avatars}>
-          {item.roster.map((user) => (
-            <Image
-              key={user.id}
-              source={{ uri: user.avatar }}
-              style={styles.avatar}
-            />
-          ))}
+        <View style={styles.cardContent}>
+          <Text style={styles.cardTitle}>{item.sport}</Text>
+          <Text style={[styles.sportTag, { backgroundColor: sportAccents[item.sport] || secondaryAccent }]}>{item.sport}</Text>
+          <Text style={styles.info}>{item.location} · {item.dateTime}</Text>
         </View>
+        <TouchableOpacity style={styles.joinBtn}>
+          <Text style={styles.joinText}>View Game</Text>
+        </TouchableOpacity>
       </Pressable>
     </Animated.View>
   );
 }
 
 export default function App() {
-  const [selectedSport, setSelectedSport] = useState('All');
+  // Safe guard for joinedGames and createdGames
+  const { joinedGames: rawJoinedGames } = useContext(JoinedGamesContext);
+  const joinedGames = Array.isArray(rawJoinedGames) ? rawJoinedGames : [];
+  const createdGames = Array.isArray(mockGames) ? mockGames.filter((g) => g.createdBy === 'me') : [];
+  console.log('GamesScreen joinedGames:', joinedGames);
+  console.log('GamesScreen createdGames:', createdGames);
+
+  // Safe guard for sports
+  const userSports = Array.isArray(joinedGames) && Array.isArray(createdGames)
+    ? Array.from(new Set([...joinedGames, ...createdGames].map(g => g.sport)))
+    : [];
+  const sports = userSports.length > 0 ? userSports : ['Basketball', 'Soccer', 'Flag Football'];
+  const [selectedSport, setSelectedSport] = useState('');
   const [dropdownVisible, setDropdownVisible] = useState(false);
+  React.useEffect(() => {
+    if (!selectedSport && sports.length > 0) setSelectedSport(sports[0]);
+  }, [sports, selectedSport]);
+
+  // filter by sport
+  const filterBySport = (games) =>
+    selectedSport ? games.filter((g) => g.sport === selectedSport) : games;
+
+  // Safe guard for SectionList data
+  const sections = [
+    { title: 'Joined Games', data: Array.isArray(joinedGames) ? filterBySport(joinedGames) : [] },
+    { title: 'Created Games', data: Array.isArray(createdGames) ? filterBySport(createdGames) : [] },
+  ];
+  console.log('GamesScreen sections:', sections);
 
   const handleGamePress = (gameId) => {
     alert('Go to Game Detail for game ' + gameId);
@@ -117,27 +162,10 @@ export default function App() {
     alert('Open Create Game form');
   };
 
-  const joinedGames = mockGames.filter((g) => !g.createdBy);
-  const createdGames = mockGames.filter((g) => g.createdBy === 'me');
-
-  // filter by sport if not "All"
-  const filterBySport = (games) =>
-    selectedSport === 'All' ? games : games.filter((g) => g.sport === selectedSport);
-
-  const sections = [
-    { title: 'Joined Games', data: filterBySport(joinedGames) },
-    { title: 'Created Games', data: filterBySport(createdGames) },
-  ];
-
   return (
     <View style={styles.container}>
       <View style={styles.topSlab}></View>
-      <View style={{ height: 64 }} />
-
-      <Text style={styles.header}>My Games</Text>
-      <Text style={styles.subheader}>
-        Quick access to games you’ve joined or created
-      </Text>
+      {/* Removed My Games and WhoGotNext text as requested */}
 
       {/* Dropdown */}
       <View style={styles.dropdownContainer}>
@@ -172,10 +200,10 @@ export default function App() {
 
       {/* SectionList for both joined + created */}
       <SectionList
-        sections={sections}
+        sections={Array.isArray(sections) ? sections : []}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <GameCard item={item} onPress={() => handleGamePress(item.id)} />
+          item ? <GameCard item={item} onPress={() => handleGamePress(item.id)} /> : <Text style={{ color: '#aaa', fontSize: 12 }}>No game data</Text>
         )}
         renderSectionHeader={({ section: { title } }) => (
           <Text style={styles.sectionHeader}>{title}</Text>
@@ -199,29 +227,31 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111111',
-    paddingTop: 40,
-    paddingHorizontal: 16,
+    backgroundColor: '#111',
+    paddingTop: 12,
+    paddingHorizontal: 0,
   },
-  topSlab: {
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#222',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 64,
-    shadowColor: '#222831',
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
-    zIndex: 10,
+    borderRadius: 12,
+    marginHorizontal: 20,
+    marginBottom: 8,
+    paddingVertical: 8,
   },
   header: {
     color: '#00FFFF',
     fontSize: 28,
     fontWeight: 'bold',
-    marginBottom: 4,
-    textAlign: 'center',
+    fontFamily: 'Poppins',
+    letterSpacing: 1,
+    alignItems: 'center',
+    marginBottom: 0,
+    marginTop: 0,
+    backgroundColor: '#111',
+    paddingTop: 12,
+    paddingHorizontal: 0,
   },
   subheader: {
     color: '#fff',
@@ -230,14 +260,16 @@ const styles = StyleSheet.create({
     marginBottom: 18,
     fontWeight: '600',
     letterSpacing: 0.5,
+    fontFamily: 'Poppins',
   },
   sectionHeader: {
     color: '#00FFFF',
     fontSize: 20,
     fontWeight: 'bold',
-    marginLeft: 16,
-    marginTop: 16,
+    fontFamily: 'Poppins',
+    marginLeft: 24,
     marginBottom: 8,
+    marginTop: 8,
   },
   dropdownContainer: {
     marginBottom: 12,
@@ -260,6 +292,7 @@ const styles = StyleSheet.create({
     color: '#00FFFF',
     fontSize: 16,
     fontWeight: 'bold',
+    fontFamily: 'Poppins',
   },
   modalOverlay: {
     flex: 1,
@@ -283,50 +316,110 @@ const styles = StyleSheet.create({
   dropdownOptionText: {
     color: '#00FFFF',
     fontSize: 16,
+    fontFamily: 'Poppins',
   },
   card: {
     backgroundColor: '#222',
-    borderRadius: 18,
-    padding: 18,
-    marginBottom: 16,
-    shadowColor: '#00FFFF',
-    shadowOpacity: 0.15,
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginVertical: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 6,
+    overflow: 'hidden',
+    flexDirection: 'column',
   },
-  emoji: {
-    fontSize: 36,
-    marginRight: 16,
+  gradientOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 60,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
   },
-  sport: {
-    color: '#00FFFF',
+  rosterPreview: {
+    position: 'absolute',
+    right: 12,
+    bottom: 12,
+    flexDirection: 'row',
+    height: 32,
+    alignItems: 'center',
+  },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#fff',
+    position: 'absolute',
+    backgroundColor: '#222',
+  },
+  cardContent: {
+    padding: 16,
+  },
+  cardTitle: {
+    color: '#fff',
     fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 2,
+    fontFamily: 'Poppins',
+    marginBottom: 8,
+  },
+  sportTag: {
+    alignSelf: 'flex-start',
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 13,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginBottom: 8,
+    marginTop: -4,
   },
   info: {
     color: '#fff',
     fontSize: 15,
-    marginBottom: 2,
+    marginBottom: 8,
+    fontFamily: 'Poppins',
+  },
+  joinBtn: {
+    backgroundColor: '#00FFFF',
+    borderRadius: 32,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginHorizontal: 0,
+    marginBottom: 0,
+    marginTop: 0,
+    width: '100%',
+    shadowColor: secondaryAccent,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.7,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  joinText: {
+    color: '#222',
+    fontWeight: 'bold',
+    fontSize: 17,
+    letterSpacing: 1,
+    fontFamily: 'Poppins',
+    textShadowColor: secondaryAccent,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
   },
   avatars: {
     flexDirection: 'row',
     alignItems: 'center',
     marginLeft: 8,
   },
-  avatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    marginLeft: -8,
-    borderWidth: 2,
-    borderColor: '#111',
-  },
   empty: {
     color: '#fff',
     textAlign: 'center',
     marginTop: 20,
     fontSize: 16,
+    fontFamily: 'Poppins',
   },
   fab: {
     position: 'absolute',
@@ -338,7 +431,7 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#00FFFF',
+    shadowColor: secondaryAccent,
     shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 6,
@@ -349,5 +442,6 @@ const styles = StyleSheet.create({
     fontSize: 36,
     fontWeight: 'bold',
     marginBottom: 2,
+    fontFamily: 'Poppins',
   },
 });

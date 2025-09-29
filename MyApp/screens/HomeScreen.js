@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useContext, createContext } from "react";
 import {
   View,
   Text,
@@ -55,8 +55,12 @@ const filterChips = [
   { label: 'Free', key: 'free' },
 ];
 
+// Create context for joined games
+export const JoinedGamesContext = createContext();
+
 export default function HomeScreen() {
   const [search, setSearch] = useState("");
+  const { joinedGames, setJoinedGames } = useContext(JoinedGamesContext);
   const [activeFilters, setActiveFilters] = useState([]);
   const [dateIndex, setDateIndex] = useState(0);
   const [streak, setStreak] = useState(3); // fake streak
@@ -76,6 +80,12 @@ export default function HomeScreen() {
     setActiveFilters(f => f.includes(key) ? f.filter(x => x !== key) : [...f, key]);
   };
 
+  const handleJoinGame = (game) => {
+    if (!joinedGames.some(g => g.id === game.id)) {
+      setJoinedGames([...joinedGames, game]);
+    }
+  };
+
   const renderGameCard = ({ item }) => {
     // Fake XP progress
     const xpProgress = Math.random() * 0.7 + 0.2;
@@ -87,13 +97,6 @@ export default function HomeScreen() {
       <View style={styles.card}>
         <View style={{ position: 'relative' }}>
           <Image source={{ uri: item.image }} style={styles.cardImage} />
-          {/* Gradient overlay at bottom of image */}
-          <LinearGradient
-            colors={["transparent", secondaryAccent, '#00FFFF']}
-            start={{ x: 0.1, y: 0.7 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.gradientOverlay}
-          />
           {/* Roster preview avatars */}
           <View style={styles.rosterPreview}>
             {rosterPreview.map((user, i) => (
@@ -139,7 +142,7 @@ export default function HomeScreen() {
             <View style={styles.badgePlaceholder}><Text style={styles.badgeText}>Playmaker</Text></View>
           </View>
         </View>
-        <TouchableOpacity style={styles.joinBtn}>
+        <TouchableOpacity style={styles.joinBtn} onPress={() => handleJoinGame(item)}>
           <Text style={styles.joinText}>Join Game</Text>
         </TouchableOpacity>
       </View>
@@ -148,13 +151,9 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Streak indicator */}
-      <View style={styles.streakRow}>
-        <Text style={styles.streakText}>🔥 {streak}-day streak! Keep it going!</Text>
-      </View>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerText}>Discover</Text>
+        <Text style={styles.headerText}>WhoGotNext</Text>
         <Ionicons name="notifications-outline" size={24} color="#00FFFF" />
       </View>
       {/* Search */}
@@ -174,21 +173,14 @@ export default function HomeScreen() {
           style={{ marginRight: 8 }}
         />
       </View>
-      {/* Date chips */}
+      {/* Date row: calendar icon left, selected date right */}
       <View style={styles.dateRow}>
-        {["Thu 25", "Fri 26", "Sat 27", "Sun 28", "Mon 29"].map((d, i) => (
-          <TouchableOpacity
-            key={i}
-            style={[styles.dateChip, i === dateIndex && styles.dateChipActive]}
-            onPress={() => setDateIndex(i)}
-          >
-            <Text
-              style={[styles.dateText, i === dateIndex && styles.dateTextActive]}
-            >
-              {d}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        <TouchableOpacity style={styles.calendarBtn}>
+          <Ionicons name="calendar-outline" size={28} color="#00FFFF" />
+        </TouchableOpacity>
+        <View style={{ flex: 1, justifyContent: 'flex-start', alignItems: 'center', flexDirection: 'row', marginLeft: 12 }}>
+          <Text style={styles.selectedDateText}>Sept 26, 2025</Text>
+        </View>
       </View>
       {/* Filter chips */}
       <View style={styles.filterChipRow}>
@@ -201,12 +193,6 @@ export default function HomeScreen() {
             <Text style={[styles.filterChipText, activeFilters.includes(chip.key) && styles.filterChipTextActive]}>{chip.label}</Text>
           </TouchableOpacity>
         ))}
-        <TouchableOpacity
-          style={[styles.filterChip, activeFilters.includes('soon') && styles.filterChipActive]}
-          onPress={() => toggleFilter('soon')}
-        >
-          <Text style={[styles.filterChipText, activeFilters.includes('soon') && styles.filterChipTextActive]}>Starting Soon</Text>
-        </TouchableOpacity>
       </View>
       {/* Games list */}
       <FlatList
@@ -223,25 +209,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#111',
-    paddingTop: 32,
-  },
-  streakRow: {
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  streakText: {
-    color: '#00FFFF',
-    fontWeight: 'bold',
-    fontSize: 16,
-    fontFamily: 'Poppins', // fallback to system if not available
-    letterSpacing: 1,
+    paddingTop: 12,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingBottom: 8,
+    paddingBottom: 2,
+    marginTop: 0,
   },
   headerText: {
     color: '#fff',
@@ -269,28 +245,25 @@ const styles = StyleSheet.create({
   },
   dateRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginHorizontal: 20,
     marginBottom: 8,
   },
-  dateChip: {
-    backgroundColor: '#222',
+  calendarBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
     borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    marginRight: 8,
+    backgroundColor: 'transparent',
   },
-  dateChipActive: {
-    backgroundColor: '#00FFFF',
-  },
-  dateText: {
+  selectedDateText: {
     color: '#fff',
-    fontSize: 15,
-    fontFamily: 'Poppins',
-  },
-  dateTextActive: {
-    color: '#222',
+    fontSize: 16,
     fontWeight: 'bold',
+    fontFamily: 'Poppins',
+    marginLeft: 4,
   },
   filterChipRow: {
     flexDirection: 'row',
@@ -339,15 +312,6 @@ const styles = StyleSheet.create({
     height: 160,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
-  },
-  gradientOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 60,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
   },
   rosterPreview: {
     position: 'absolute',
